@@ -158,7 +158,7 @@ spec:
             echo 'Library validation failed - check logs above'
         }
         cleanup {
-            cleanWs()
+            deleteDir()
         }
     }
 }
