@@ -1,0 +1,121 @@
+# Pod template for homelab-k8s GitOps validation pipeline
+# Loaded via readTrusted() - works before agent allocation in Multibranch
+#
+# Containers:
+#   - jnlp: Jenkins agent (required)
+#   - golang: Pre-baked validation image with all CI tools
+#   - tools: Alpine k8s tools for basic validation
+#   - kaniko: Container image building
+#
+# Resource Strategy (GitHub issue #1099):
+# - Requests set to match actual steady-state usage
+# - Limits set to 2x request (allow burst but cap it)
+# - This gives scheduler accurate info for placement decisions
+# - Total pod request: ~1.7 CPU, ~3.5Gi memory
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    workload-type: ci-builds
+    app.kubernetes.io/component: jenkins-agent
+spec:
+  # Hard deadline: kill pod after 2 hours to prevent orphaned zombies
+  activeDeadlineSeconds: 7200
+  # Pull validation image from private Nexus registry
+  imagePullSecrets:
+  - name: nexus-registry-credentials
+  # Prefer nodes without heavy-io workloads (media processing, ML inference)
+  # This prevents CI builds from competing with Plex/Immich/qBittorrent
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              workload-type: heavy-io
+          topologyKey: kubernetes.io/hostname
+      - weight: 80
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              workload-type: media-io
+          topologyKey: kubernetes.io/hostname
+  containers:
+  # Explicit jnlp container to prevent agent disconnects
+  - name: jnlp
+    image: jenkins/inbound-agent:3355.v388858a_47b_33-3-jdk21
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  # Validation container with pre-baked tools
+  # See tools/validation-image/Dockerfile for included tools
+  # Heavy lifter: Go builds, kustomize rendering, shadow sync
+  - name: golang
+    image: docker.nexus.erauner.dev/homelab/validation:v0.1.0-rc.1
+    imagePullPolicy: IfNotPresent
+    command: ['sleep', '3600']
+    env:
+    - name: GOCACHE
+      value: /go-cache/cache
+    - name: GOMODCACHE
+      value: /go-cache/mod
+    - name: HELM_CACHE_HOME
+      value: /helm-cache/cache
+    - name: HELM_CONFIG_HOME
+      value: /helm-cache/config
+    - name: HELM_DATA_HOME
+      value: /helm-cache/data
+    - name: XDG_CONFIG_HOME
+      value: /root/.config
+    volumeMounts:
+    - name: go-cache
+      mountPath: /go-cache
+    - name: helm-cache
+      mountPath: /helm-cache
+    resources:
+      requests:
+        cpu: 1000m         # Up from 200m - Go builds are CPU-intensive
+        memory: 2Gi        # Up from 1Gi - kustomize/helm rendering needs headroom
+      limits:
+        cpu: 2000m         # 2x request ratio
+        memory: 3Gi        # Down from 4Gi - more honest limit
+  # Light tools container for basic YAML validation
+  - name: tools
+    image: alpine/k8s:1.31.3
+    command: ['sleep', '3600']
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 200m          # Added limit for predictability
+        memory: 512Mi
+  # Kaniko for container image builds (master branch only)
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command: ['sleep', '3600']
+    volumeMounts:
+    - name: nexus-creds
+      mountPath: /kaniko/.docker
+    resources:
+      requests:
+        cpu: 500m          # Up from 100m - image builds need CPU
+        memory: 1Gi        # Up from 512Mi - layer caching needs memory
+      limits:
+        cpu: 1000m         # 2x request ratio
+        memory: 2Gi
+  volumes:
+  - name: go-cache
+    persistentVolumeClaim:
+      claimName: jenkins-go-cache
+  - name: helm-cache
+    persistentVolumeClaim:
+      claimName: jenkins-helm-cache
+  - name: nexus-creds
+    secret:
+      secretName: nexus-registry-credentials
