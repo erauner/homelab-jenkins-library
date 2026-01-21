@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: homelab-jenkins-library
+  description: Shared Jenkins pipeline library with reusable functions for CI/CD workflows
+  annotations:
+    github.com/project-slug: erauner12/homelab-jenkins-library
+    homelab.dev/manifest-name: homelab-jenkins-library
+  tags:
+    - jenkins
+    - groovy
+    - shared-library
+    - ci-cd
+  links:
+    - url: https://github.com/erauner12/homelab-jenkins-library
+      title: GitHub Repository
+    - url: https://jenkins.erauner.dev
+      title: Jenkins Instance
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: homelab-infrastructure
