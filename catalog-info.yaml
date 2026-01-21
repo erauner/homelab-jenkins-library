@@ -5,6 +5,7 @@ metadata:
   description: Shared Jenkins pipeline library with reusable functions for CI/CD workflows
   annotations:
     github.com/project-slug: erauner12/homelab-jenkins-library
+    jenkins.io/job-full-name: libraries/homelab-jenkins-library/main
     homelab.dev/manifest-name: homelab-jenkins-library
   tags:
     - jenkins
