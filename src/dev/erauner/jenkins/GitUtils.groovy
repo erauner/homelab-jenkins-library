@@ -17,7 +17,7 @@ class GitUtils implements Serializable {
      */
     static String describe(def steps) {
         return steps.sh(
-            script: 'git describe --tags --always --dirty 2>/dev/null || echo "dev"',
+            script: 'git config --global --add safe.directory "${WORKSPACE}" 2>/dev/null; git describe --tags --always --dirty 2>/dev/null || echo "dev"',
             returnStdout: true
         ).trim()
     }
@@ -30,7 +30,7 @@ class GitUtils implements Serializable {
      */
     static String shortCommit(def steps) {
         return steps.sh(
-            script: 'git rev-parse --short HEAD',
+            script: 'git config --global --add safe.directory "${WORKSPACE}" 2>/dev/null; git rev-parse --short HEAD',
             returnStdout: true
         ).trim()
     }
@@ -42,6 +42,9 @@ class GitUtils implements Serializable {
      * @return Map with keys: short, message, author
      */
     static Map<String, String> lastCommitInfo(def steps) {
+        // Add safe.directory once at the start
+        steps.sh(script: 'git config --global --add safe.directory "${WORKSPACE}" 2>/dev/null || true', returnStatus: true)
+
         def shortHash = steps.sh(
             script: 'git log -1 --pretty=%h 2>/dev/null || echo "unknown"',
             returnStdout: true
@@ -77,7 +80,7 @@ class GitUtils implements Serializable {
      */
     static boolean changedSince(def steps, String baseRef = 'HEAD~1', List<String> containsAny = []) {
         def changedFiles = steps.sh(
-            script: "git diff --name-only ${baseRef} 2>/dev/null || echo ''",
+            script: "git config --global --add safe.directory \"\${WORKSPACE}\" 2>/dev/null; git diff --name-only ${baseRef} 2>/dev/null || echo ''",
             returnStdout: true
         ).trim()
 
