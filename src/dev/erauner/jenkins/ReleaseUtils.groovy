@@ -111,6 +111,8 @@ class ReleaseUtils implements Serializable {
      * Create and push a git tag.
      *
      * Configures git with Jenkins CI user and pushes the tag to origin.
+     * Automatically deletes any existing local/remote tag with the same name
+     * to ensure idempotent pipeline runs.
      *
      * @param steps Pipeline script context (pass 'this' from Jenkinsfile)
      * @param args Map with:
@@ -132,12 +134,15 @@ class ReleaseUtils implements Serializable {
 
         // Use WORKSPACE env var to ensure we're in the git directory
         // Add safe.directory to work around git security check for different container users
+        // Delete existing local/remote tag if it exists to support pipeline retries
         steps.sh """cd "\${WORKSPACE}" && \\
 git config --global --add safe.directory "\${WORKSPACE}" && \\
 git config user.email "jenkins@erauner.dev" && \\
 git config user.name "Jenkins CI" && \\
-git tag -a ${version} -m "${message}" && \\
 git remote set-url origin https://\${GIT_USER}:\${GIT_TOKEN}@github.com/${repo}.git && \\
+git tag -d ${version} 2>/dev/null || true && \\
+git push origin :refs/tags/${version} 2>/dev/null || true && \\
+git tag -a ${version} -m "${message}" && \\
 git push origin ${version}"""
     }
 
@@ -155,6 +160,9 @@ git push origin ${version}"""
     /**
      * Create a GitHub release and return the release ID.
      *
+     * Automatically deletes any existing release with the same tag to support
+     * pipeline retries.
+     *
      * @return Map with keys: id (release ID), url (release URL)
      */
     static Map<String, Object> createGithubRelease(def steps, Map args) {
@@ -170,6 +178,24 @@ git push origin ${version}"""
         if (!repo) {
             steps.error("ReleaseUtils.createGithubRelease: 'repo' is required")
         }
+
+        // Delete existing release if it exists (for idempotent retries)
+        steps.sh(
+            script: """
+EXISTING_RELEASE_ID=\$(curl -sf \\
+    -H "Authorization: token \${GIT_TOKEN}" \\
+    -H "Accept: application/vnd.github.v3+json" \\
+    "https://api.github.com/repos/${repo}/releases/tags/${version}" 2>/dev/null | jq -r '.id' 2>/dev/null || echo "")
+
+if [ -n "\$EXISTING_RELEASE_ID" ] && [ "\$EXISTING_RELEASE_ID" != "null" ]; then
+    echo "Deleting existing release \$EXISTING_RELEASE_ID for tag ${version}"
+    curl -sf -X DELETE \\
+        -H "Authorization: token \${GIT_TOKEN}" \\
+        "https://api.github.com/repos/${repo}/releases/\$EXISTING_RELEASE_ID" || true
+fi
+""",
+            returnStatus: true
+        )
 
         def releasePayload = """{
             "tag_name": "${version}",
