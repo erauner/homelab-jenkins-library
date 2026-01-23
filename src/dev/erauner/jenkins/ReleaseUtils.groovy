@@ -152,7 +152,12 @@ git push origin ${version}"""
      *   - prerelease: Whether this is a pre-release (default: true if version contains '-rc.')
      *   - draft: Whether this is a draft (default: false)
      */
-    static void createGithubRelease(def steps, Map args) {
+    /**
+     * Create a GitHub release and return the release ID.
+     *
+     * @return Map with keys: id (release ID), url (release URL)
+     */
+    static Map<String, Object> createGithubRelease(def steps, Map args) {
         def version = args.version
         def repo = args.repo
         def body = args.body ?: "Release ${version}"
@@ -177,12 +182,29 @@ git push origin ${version}"""
         steps.writeFile file: 'release-payload.json', text: releasePayload
 
         // Use WORKSPACE env var to ensure we're in the correct directory
-        steps.sh """cd "\${WORKSPACE}" && \\
+        // Capture response to get release ID
+        def response = steps.sh(
+            script: """cd "\${WORKSPACE}" && \\
 curl -sf -X POST \\
     -H "Authorization: token \${GIT_TOKEN}" \\
     -H "Accept: application/vnd.github.v3+json" \\
     -d @release-payload.json \\
-    "https://api.github.com/repos/${repo}/releases\""""
+    "https://api.github.com/repos/${repo}/releases\"""",
+            returnStdout: true
+        ).trim()
+
+        // Parse release ID from response using jq
+        def releaseId = steps.sh(
+            script: "echo '${response.replace("'", "'\\''")}' | jq -r '.id'",
+            returnStdout: true
+        ).trim()
+
+        def releaseUrl = steps.sh(
+            script: "echo '${response.replace("'", "'\\''")}' | jq -r '.html_url'",
+            returnStdout: true
+        ).trim()
+
+        return [id: releaseId, url: releaseUrl]
     }
 
     /**
@@ -197,9 +219,9 @@ curl -sf -X POST \\
      *   - imageTag: Docker image tag to include in release notes (optional)
      *   - imageName: Docker image name to include in release notes (optional)
      *   - stable: If true, create a stable release instead of pre-release (default: false)
-     * @return Map with keys: version (the new version string)
+     * @return Map with keys: version, releaseId, releaseUrl
      */
-    static Map<String, String> createPreRelease(def steps, Map args) {
+    static Map<String, Object> createPreRelease(def steps, Map args) {
         def repo = args.repo
         def imageTag = args.imageTag
         def imageName = args.imageName
@@ -228,14 +250,18 @@ curl -sf -X POST \\
             body += "\\n\\nImage: ${imageName}:${imageTag}"
         }
 
-        // Create GitHub release
-        createGithubRelease(steps, [
+        // Create GitHub release and get release ID
+        def releaseResult = createGithubRelease(steps, [
             version: newVersion,
             repo: repo,
             body: body,
             prerelease: !stable
         ])
 
-        return [version: newVersion]
+        return [
+            version: newVersion,
+            releaseId: releaseResult.id,
+            releaseUrl: releaseResult.url
+        ]
     }
 }
