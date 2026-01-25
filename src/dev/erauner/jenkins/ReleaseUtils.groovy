@@ -208,25 +208,24 @@ fi
         steps.writeFile file: 'release-payload.json', text: releasePayload
 
         // Use WORKSPACE env var to ensure we're in the correct directory
-        // Capture response to get release ID
-        def response = steps.sh(
+        // Write response to file to avoid shell quoting issues with control characters
+        steps.sh(
             script: """cd "\${WORKSPACE}" && \\
 curl -sf -X POST \\
     -H "Authorization: token \${GIT_TOKEN}" \\
     -H "Accept: application/vnd.github.v3+json" \\
     -d @release-payload.json \\
-    "https://api.github.com/repos/${repo}/releases\"""",
-            returnStdout: true
-        ).trim()
+    "https://api.github.com/repos/${repo}/releases" > release-response.json"""
+        )
 
-        // Parse release ID from response using jq
+        // Parse release ID and URL from response file using jq
         def releaseId = steps.sh(
-            script: "echo '${response.replace("'", "'\\''")}' | jq -r '.id'",
+            script: 'cd "${WORKSPACE}" && jq -r ".id" release-response.json',
             returnStdout: true
         ).trim()
 
         def releaseUrl = steps.sh(
-            script: "echo '${response.replace("'", "'\\''")}' | jq -r '.html_url'",
+            script: 'cd "${WORKSPACE}" && jq -r ".html_url" release-response.json',
             returnStdout: true
         ).trim()
 
