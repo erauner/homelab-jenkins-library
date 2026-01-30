@@ -19,7 +19,7 @@ spec:
         cpu: 500m
         memory: 512Mi
   - name: go
-    image: golang:1.23-alpine
+    image: golang:1.23
     command: ['sleep', '3600']
     env:
     - name: GOCACHE
