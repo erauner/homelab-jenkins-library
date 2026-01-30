@@ -1,0 +1,35 @@
+# Pod template for simple Go projects
+# Minimal setup for running Go tests and builds
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    workload-type: ci-builds
+    app.kubernetes.io/component: jenkins-agent
+spec:
+  activeDeadlineSeconds: 3600
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:3355.v388858a_47b_33-3-jdk21
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  - name: go
+    image: golang:1.23-alpine
+    command: ['sleep', '3600']
+    env:
+    - name: GOCACHE
+      value: /tmp/go-cache
+    - name: GOMODCACHE
+      value: /tmp/go-mod
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
