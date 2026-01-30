@@ -1,5 +1,6 @@
 # Pod template for simple Go projects
 # Minimal setup for running Go tests and builds
+# Includes Athens proxy configuration for caching and private modules
 apiVersion: v1
 kind: Pod
 metadata:
@@ -22,10 +23,20 @@ spec:
     image: golang:1.23
     command: ['sleep', '3600']
     env:
+    # Go module caching
     - name: GOCACHE
       value: /tmp/go-cache
     - name: GOMODCACHE
       value: /tmp/go-mod
+    # Athens Go proxy - caches public modules, handles private github.com/erauner/* modules
+    - name: GOPROXY
+      value: "https://athens.erauner.dev,direct"
+    # Don't verify checksums for private modules (Athens handles this)
+    - name: GONOSUMDB
+      value: "github.com/erauner/*"
+    # Mark as private so Go doesn't try public proxy.golang.org first
+    - name: GOPRIVATE
+      value: "github.com/erauner/*"
     resources:
       requests:
         cpu: 500m

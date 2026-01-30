@@ -398,6 +398,8 @@ spec:
       value: "https://athens.erauner.dev,direct"
     - name: GONOSUMDB
       value: "github.com/erauner/*"
+    - name: GOPRIVATE
+      value: "github.com/erauner/*"
     - name: GOFLAGS
       value: "-buildvcs=false"
     volumeMounts:
@@ -648,13 +650,15 @@ spec:
         cpu: 500m
         memory: 512Mi
   - name: golang
-    image: golang:1.25-alpine
+    image: golang:1.23-alpine
     command: ['cat']
     tty: true
     env:
     - name: GOPROXY
       value: https://athens.erauner.dev,direct
     - name: GONOSUMDB
+      value: github.com/erauner/*
+    - name: GOPRIVATE
       value: github.com/erauner/*
     resources:
       requests:
