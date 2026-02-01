@@ -350,6 +350,8 @@ def podTemplate(String template = 'gitops') {
             return pythonPodTemplate()
         case 'node':
             return nodePodTemplate()
+        case 'node-full':
+            return nodeFullPodTemplate()
         case 'flutter':
             return flutterPodTemplate()
         case 'tools':
@@ -359,7 +361,7 @@ def podTemplate(String template = 'gitops') {
         case 'kaniko-go':
             return kanikoGoPodTemplate()
         default:
-            error "Unknown pod template: ${template}. Available: gitops, golang, python, node, flutter, tools, kaniko, kaniko-go"
+            error "Unknown pod template: ${template}. Available: gitops, golang, python, node, node-full, flutter, tools, kaniko, kaniko-go"
     }
 }
 
@@ -478,6 +480,50 @@ spec:
       limits:
         cpu: 1000m
         memory: 1Gi
+'''
+}
+
+/**
+ * Generate Node.js development pod template with tools container.
+ *
+ * Includes tools container for curl, git, and other CLI utilities
+ * needed for notifications and npm publishing to Nexus.
+ */
+def nodeFullPodTemplate() {
+    return '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:3355.v388858a_47b_33-3-jdk21
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  - name: node
+    image: node:22-alpine
+    command: ['sleep', '3600']
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  - name: tools
+    image: alpine/k8s:1.31.3
+    command: ['sleep', '3600']
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
 '''
 }
 
